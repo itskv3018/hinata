@@ -1,0 +1,46 @@
+# Hinata AI Agent — Requirements
+# Install: pip install -r requirements.txt
+
+# ------ Core ------
+python-dotenv>=1.0.0        # Environment variable management
+aiohttp>=3.9.0              # Async HTTP client (for LLM APIs)
+
+# ------ LLM Providers ------
+# Ollama: Install from https://ollama.ai (runs locally, free)
+openai>=1.0.0               # OpenAI API (optional, cloud)
+# google-generativeai       # Gemini API (optional, uncomment if needed)
+
+# ------ API Server ------
+fastapi>=0.110.0            # Web framework
+uvicorn[standard]>=0.27.0   # ASGI server
+websockets>=12.0            # WebSocket support
+pydantic>=2.0               # Data validation
+
+# ------ Memory ------
+chromadb>=0.4.0             # Vector database for long-term memory
+
+# ------ Voice ------
+SpeechRecognition>=3.10.0   # Speech-to-text
+edge-tts>=6.1.0             # Microsoft Edge TTS (free, high quality)
+pyttsx3>=2.90               # Offline TTS fallback
+# openai-whisper            # Local Whisper STT (optional, large download)
+# PyAudio                   # Required for microphone — install separately
+                            # Windows: pip install pyaudio
+                            # Linux: sudo apt install portaudio19-dev && pip install pyaudio
+
+# ------ System Control ------
+psutil>=5.9.0               # System info, process management
+Pillow>=10.0.0              # Screenshots
+screen-brightness-control>=0.23.0  # Brightness control (Windows/Linux)
+# pycaw>=20230407           # Windows volume control (optional)
+
+# ------ Search ------
+duckduckgo-search>=5.0.0    # Free web search (no API key needed)
+
+# ------ Utilities ------
+plyer>=2.1.0                # Desktop notifications
+send2trash>=1.8.0           # Safe file deletion (recycle bin)
+# dateparser>=1.2.0         # Natural language date parsing (optional)
+
+# ------ Optional: Audio Playback ------
+# pygame>=2.5.0             # Audio playback (for TTS)
