@@ -3,6 +3,7 @@
 # Implements the THINK step of the ReAct loop.
 
 import json
+import re
 import asyncio
 from typing import Optional
 
@@ -57,7 +58,9 @@ class LLMReasoner:
 
         # Call the appropriate LLM provider
         try:
-            if self.provider == "ollama":
+            if self.provider == "demo":
+                raw = self._demo_response(context)
+            elif self.provider == "ollama":
                 raw = await self._call_ollama(context)
             elif self.provider == "openai":
                 raw = await self._call_openai(context)
@@ -189,3 +192,100 @@ class LLMReasoner:
         # Fallback: treat entire response as a direct reply
         log.warning(f"Could not parse LLM response as JSON, using as direct reply")
         return {"action": "respond", "response": raw[:1000]}
+
+    # ------------------------------------------------------------------
+    # Demo mode — works offline, no LLM needed
+    # ------------------------------------------------------------------
+    def _demo_response(self, context: str) -> str:
+        """Pattern-match common requests for demo/testing without an LLM."""
+        ctx = context.lower()
+
+        # Greetings
+        if re.search(r'\b(hello|hi|hey|greetings|good morning|good evening)\b', ctx):
+            return json.dumps({"action": "respond", "response": "Hey there! 🌸 I'm Hinata, your personal AI agent. I can control your computer, search the web, manage files, set reminders, take notes, check weather, and much more. Just ask!"})
+
+        # Capabilities
+        if re.search(r'what can you do|your (capabilities|features|abilities)|help me with', ctx):
+            return json.dumps({"action": "respond", "response": "Here's what I can do 🌸:\n\n🖥️ System Control — volume, brightness, screenshots, battery, lock screen\n🚀 App Launcher — open/close apps, URLs, files\n📁 File Manager — browse, search, create, move, delete files\n🔍 Web Search — search the web via DuckDuckGo\n🌤️ Weather — current weather and forecasts\n📝 Notes — save and manage personal notes\n⏰ Reminders — set reminders and timers\n🎵 Media Control — play/pause music, open YouTube\n\nJust tell me what you need!"})
+
+        # Screenshot
+        if re.search(r'screenshot|screen.?shot|capture.?screen', ctx):
+            return json.dumps({"action": "execute_plugin", "plugin": "system_control", "plugin_action": "screenshot", "params": {}})
+
+        # Battery
+        if re.search(r'battery|power.?level|charge', ctx):
+            return json.dumps({"action": "execute_plugin", "plugin": "system_control", "plugin_action": "battery_status", "params": {}})
+
+        # System info
+        if re.search(r'system.?info|computer.?info|specs|cpu|ram|memory', ctx):
+            return json.dumps({"action": "execute_plugin", "plugin": "system_control", "plugin_action": "system_info", "params": {}})
+
+        # Volume
+        m = re.search(r'(set|change)?\s*volume\s*(to\s*)?(\d+)', ctx)
+        if m:
+            return json.dumps({"action": "execute_plugin", "plugin": "system_control", "plugin_action": "set_volume", "params": {"level": int(m.group(3))}})
+        if re.search(r'(mute|unmute|volume)', ctx):
+            return json.dumps({"action": "execute_plugin", "plugin": "system_control", "plugin_action": "set_volume", "params": {"level": 50}})
+
+        # Brightness
+        m = re.search(r'brightness\s*(to\s*)?(\d+)', ctx)
+        if m:
+            return json.dumps({"action": "execute_plugin", "plugin": "system_control", "plugin_action": "set_brightness", "params": {"level": int(m.group(2))}})
+
+        # Open apps/URLs
+        if re.search(r'open\s+(youtube|chrome|notepad|calculator|spotify|vscode|code)', ctx):
+            app = re.search(r'open\s+(\w+)', ctx).group(1)
+            return json.dumps({"action": "execute_plugin", "plugin": "app_launcher", "plugin_action": "open_app", "params": {"app_name": app}})
+
+        if re.search(r'open\s+https?://', ctx):
+            url = re.search(r'(https?://\S+)', ctx).group(1)
+            return json.dumps({"action": "execute_plugin", "plugin": "app_launcher", "plugin_action": "open_url", "params": {"url": url}})
+
+        # Weather
+        if re.search(r'weather|temperature|forecast', ctx):
+            city_m = re.search(r'(?:weather|temperature|forecast)\s+(?:in|for|at)\s+(.+?)(?:\?|$)', ctx)
+            city = city_m.group(1).strip() if city_m else "auto"
+            return json.dumps({"action": "execute_plugin", "plugin": "weather", "plugin_action": "current_weather", "params": {"city": city}})
+
+        # Web search
+        if re.search(r'search\s+(?:for\s+)?(.+)', ctx):
+            query = re.search(r'search\s+(?:for\s+)?(.+?)(?:\?|$)', ctx).group(1).strip()
+            return json.dumps({"action": "execute_plugin", "plugin": "web_search", "plugin_action": "search", "params": {"query": query}})
+
+        # Notes
+        if re.search(r'(take|add|create|save)\s+(a\s+)?note', ctx):
+            content_m = re.search(r'note[:\s]+(.+)', ctx)
+            content = content_m.group(1).strip() if content_m else "Untitled note"
+            return json.dumps({"action": "execute_plugin", "plugin": "notes", "plugin_action": "add_note", "params": {"title": "Quick Note", "content": content}})
+        if re.search(r'(show|list|my)\s+notes', ctx):
+            return json.dumps({"action": "execute_plugin", "plugin": "notes", "plugin_action": "list_notes", "params": {}})
+
+        # Reminders
+        if re.search(r'(set|create|add)\s+(a\s+)?reminder', ctx):
+            return json.dumps({"action": "execute_plugin", "plugin": "reminders", "plugin_action": "add_reminder", "params": {"text": "Reminder from Hinata", "minutes": 5}})
+
+        # Files
+        if re.search(r'list\s+files|show\s+files|what.?s in', ctx):
+            return json.dumps({"action": "execute_plugin", "plugin": "file_manager", "plugin_action": "list_files", "params": {"path": "."}})
+
+        # Time
+        if re.search(r'what.?s the time|current time|what time', ctx):
+            from datetime import datetime
+            now = datetime.now().strftime("%I:%M %p, %B %d, %Y")
+            return json.dumps({"action": "respond", "response": f"It's currently {now} 🕐"})
+
+        # Who are you
+        if re.search(r'who are you|your name|about you', ctx):
+            return json.dumps({"action": "respond", "response": "I'm Hinata 🌸, your personal AI agent! I was built to be like Jarvis — I can control your computer, search the web, manage files, and learn from how you use me. I get smarter over time!"})
+
+        # Jokes
+        if re.search(r'joke|funny|make me laugh', ctx):
+            return json.dumps({"action": "respond", "response": "Why do programmers prefer dark mode? Because light attracts bugs! 🐛😄"})
+
+        # Thanks
+        if re.search(r'thank|thanks|thx', ctx):
+            return json.dumps({"action": "respond", "response": "You're welcome! 🌸 Let me know if you need anything else."})
+
+        # Default
+        return json.dumps({"action": "respond", "response": "I understood your message! 🌸 In full mode (with Gemini/Ollama connected), I can reason about complex requests. Right now I'm in demo mode — try asking me to take a screenshot, check the weather, open YouTube, or show system info!"})
+
