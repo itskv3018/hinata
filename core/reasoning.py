@@ -142,6 +142,16 @@ class LLMReasoner:
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=payload, params=params, headers=headers) as resp:
                 data = await resp.json()
+                log.debug(f"Gemini raw response keys: {list(data.keys())}")
+
+                if "error" in data:
+                    raise Exception(f"Gemini API error: {data['error'].get('message', data['error'])}")
+
+                if "candidates" not in data:
+                    # Fallback: maybe blocked or empty
+                    log.warning(f"Gemini response has no candidates: {str(data)[:300]}")
+                    return '{"action": "respond", "response": "I received an empty response from the AI model. Please try again."}'
+
                 return data["candidates"][0]["content"]["parts"][0]["text"]
 
     # ------------------------------------------------------------------
